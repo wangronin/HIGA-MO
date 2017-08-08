@@ -320,7 +320,6 @@ class MOO_HyperVolumeGradient:
         gradient[:, idx] = _grad
         return gradient
         
-        
     def __ND_hypervolume_df(self, positive_set):
         # TODO: implement hypervolume gradient larger than 3D
         pass
