@@ -14,19 +14,11 @@ Testing script for multi-objective Hyper-Volume Gradient algorithm
 import pdb
 import time
 import numpy as np
-
 from numpy import *
-
 from platform import system
-
-import matplotlib as mpl
-#mpl.use('MacOSX')
-import matplotlib.animation as animation
 
 from moo_gradient import MOO_HyperVolumeGradient
 from hv import HyperVolume
-
-from matplotlib import cm
 
 
 def f1(x):
@@ -44,29 +36,8 @@ def f1_grad(x):
 def f2_grad(x):
    x1, x2 = x
    return [2.0*(x1 - 1), 2.0*(x2 - 0.5)]
-#    
-    
-    
-# def f1(x):
-#     x = float(x)
-#     #return x
-#     return x ** 2.0
 
-# def f2(x):
-#     x = float(x)
-#     #return (1 - np.sqrt(x)) ** 2.0
-#     return (1 - x) ** 2.0
-
-# def f1_grad(x):
-#     #return [1.]
-#     return 2.0 * x
-
-# def f2_grad(x):
-#     #return [(np.sqrt(x) - 1)  / np.sqrt(x)]
-#     return 2.0 * (x - 1.)
-
-
-
+# anther set of test functions
 #def f1(x):
 #    x1, x2 = x
 #    return 1 - (x1 ** 2 + 1) * x2 ** 2
@@ -84,59 +55,58 @@ def f2_grad(x):
 #    return [-2.0 * (x2 ** 2 + 1) * x1, -(2 * x2 + 1) * x1 ** 2]
 
 if system() == 'Darwin':
+    # TKAgg backend is needed for MacOS
     import matplotlib
     matplotlib.use('TKAgg') 
     
+import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
+from matplotlib import cm
 
 plt.ioff()
+plt.style.use('ggplot')
 rcParams['legend.numpoints'] = 1 
-rcParams['xtick.labelsize'] = 15
-rcParams['ytick.labelsize'] = 15
+rcParams['xtick.labelsize'] = 8
+rcParams['ytick.labelsize'] = 8
 rcParams['xtick.major.size'] = 7
 rcParams['xtick.major.width'] = 1
 rcParams['ytick.major.size'] = 7
 rcParams['ytick.major.width'] = 1
-rcParams['axes.labelsize'] = 15
+rcParams['axes.labelsize'] = 10
+rcParams['xtick.direction'] = 'out'
+rcParams['ytick.direction'] = 'out'
 
 _color = ['r', 'g', 'b', 'c', 'k', 'm', 'y']
-
 np.random.seed(100)
 
-fig_width = 22
-fig_height = 22 * 9 / 16
+# animation parameters
+fig_width = 20
+fig_height = fig_width * 9 / 16
 
-dim = 2  # decision space dimension
-mu = 50  # approximation set size
-maxiter = 500 # maximal iteration
+delay = 0           # delays between frames
+t_start = time.time()
+fps = 100
 
-def fitness_func(x):
-    return [f1(x), f2(x)]
-    
+dim = 2  
+mu = 50  
+maxiter = 500
+
+# def fitness_func(x):
+#     return [f1(x), f2(x)]
+
+fitness_func = [f1, f2]
 fitness_grad = [f1_grad, f2_grad]
-ref = [1, 1]  # reference point
-step_size = 0.001 # inital step size
-sampling = 'unif' # initial sampling method
-
-# algorithm parameters
-opts = {
-        'lb' : [0, 0],
-        'ub' : [1, 1],
-        'maxiter' : np.inf,
-        'heuristic' : 'M3', # not used for now
-        'non_dominated_sorting' : True,
-        'enable_dominated' : True
-        }
-
-lb = opts['lb']
-ub = opts['ub']
+ref = [1, 1] 
+step_size = 0.001
+sampling = 'uniform' 
+lb = [0, 0]
+ub = [1, 1]
         
-optimizer = MOO_HyperVolumeGradient(dim, 2, mu, fitness_func, gradient=fitness_grad, 
-                                    ref=ref, opts=opts, step_size=step_size,
+optimizer = MOO_HyperVolumeGradient(dim, 2, lb, ub, mu, fitness_func,
+                                    fitness_grad, ref, step_size,
                                     sampling=sampling, maximize=False,
-                                    adaptive_step_size=True,
-                                    normalize=True)
+                                    maxiter=maxiter)
 
 fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, fig_height))
 
@@ -144,7 +114,7 @@ fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, fig_height))
 fig.subplots_adjust(left=0.03, bottom=0.01, right=0.97, top=0.99, wspace=0.08, 
                     hspace=0.1)
                     
-plot_layers = opts['non_dominated_sorting']
+plot_layers = optimizer.dominated_steer == 'NDS'
 
 if not plot_layers:
     line00, line01 = ax0.plot([], [],  'or', [], [], 'ob', ms=6, mec='none', 
@@ -161,8 +131,8 @@ ax1.set_xlabel('$f_1$')
 ax1.set_ylabel('$f_2$')
 ax0.set_xlim([lb[0], ub[1]])
 ax0.set_ylim([lb[1], ub[1]])
-ax1.set_xlim([0, ref[0] * 1.2])
-ax1.set_ylim([0, ref[1] * 1.2])
+ax1.set_xlim([-0.1, ref[0] * 1.2])
+ax1.set_ylim([-0.1, ref[1] * 1.2])
 
 for ax in (ax0, ax1):
     ax.grid(True)
@@ -170,28 +140,8 @@ for ax in (ax0, ax1):
 
 # hyper-volume calculation
 hv = HyperVolume(ref)
-
-delay = 0
-toggle = True
-t_start = time.time()
-fps = 200
-
-# def hv2(s1, s2):
-#     if s1 > s2 :
-#         s1, _ = s2, s1
-#         s2 = _
-#         return (2*sqrt(s1) - s1) * (1- s1) + (-2*sqrt(s1)+s1+2*sqrt(s2)-s2) *(1- s2)
-#     else:
-#         return (2*sqrt(s1) - s1) * (1- s1) + (-2*sqrt(s1)+s1+2*sqrt(s2)-s2) *(1- s2)
-# #    return (-s1**2 + 1)*(-(s1 - 1)**2 + 1) + (-s2**2 + 1)*((s1 - 1)**2 - (s2 - 1)**2)
-        
-# s1 = linspace(0, 1, 500)
-# s2 = linspace(0, 1, 500)
-# X, Y = meshgrid(s1, s2)
-
-# F = array([hv2(*p) for p in np.c_[X.flatten(), Y.flatten()]]).reshape(-1, len(s1))
-
 pop_x_traject = {}
+
 def init():
     fps_text.set_text('')
     hv_text.set_text('')
@@ -201,20 +151,16 @@ def init():
         line01.set_data([], [])
         line10.set_data([], [])
         line11.set_data([], [])
-    
         return line00, line01, line10, line11
-        
     else:
         ax0.lines = []
         ax1.lines = []
-        
         return []
 
 def animate(ind):
     global t_start
     
     time.sleep(delay/1000.0)
-    
     front_idx, fitness = optimizer.step()
 
     print 'iteration {}'.format(optimizer.itercount)
@@ -253,7 +199,6 @@ def animate(ind):
                              color=_color[i%len(_color)])
                              
         volume = hv.compute(fronts[0].T)
-            
     else:
         dominated_idx = list(set(range(optimizer.mu)) - set(front_idx))
         
@@ -268,19 +213,17 @@ def animate(ind):
         line01.set_data(x_dominated[0, :], x_dominated[1, :])
         line10.set_data(front[0, :], front[1, :])
         line11.set_data(dominated[0, :], dominated[1, :])
-        
         lines += [line00, line01, line10, line11]
-    
     hv_text.set_text('HV = {}'.format(volume))
     return lines + [hv_text, fps_text]
 
 ani = animation.FuncAnimation(fig, animate, frames=maxiter, interval=50, 
                               blit=True, init_func=init)
 
-if 1 < 2:
+if 11 < 2:
     plt.rcParams['animation.ffmpeg_path'] = u'/usr/local/bin/ffmpeg'
     Writer = animation.writers['ffmpeg']
-    writer = Writer(fps=100, metadata=dict(artist='Me'), bitrate=1800)
+    writer = Writer(fps=fps, metadata=dict(artist='Hao Wang'), bitrate=1800)
     ani.save('test.mp4', writer=writer, dpi=100)
 
 else:

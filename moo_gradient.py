@@ -17,7 +17,6 @@ Created on Tue Nov 17 15:20:54 2015
            population size and the dimensionality.
         4. Possibility to use Conjugate Gradient methods: requires 
            (Backtracking) line search which costs more function evalutations,
-           Discuss this issue with Michael
     ------------------------------------------------------------------------------
     Feb 5 2016:
         1. Implement hypervolume gradient computation for m > 2 
@@ -42,32 +41,112 @@ from numpy import argsort, r_, zeros, nonzero, array, atleast_2d, sqrt, mod, inf
 from hv import HyperVolume
 
 from pyDOE import lhs
-from ghalton import Halton
-from sobol import i4_sobol
-
 from copy import copy, deepcopy
 
 
 class MOO_HyperVolumeGradient:
     
-    def __init__(self, dim_d, dim_o, mu=40, fitness=None, gradient=None, 
-                 ref=None, opts=None, sampling='unif', step_size=0.1, 
-                 normalize=True, maximize=True, adaptive_step_size=True,
-                 verbose=False):    
-        # TODO: parameter 'opts' should become obsolete, it is used for testing
-        self.dim_d = dim_d               # dimensionality of decision space 
-        self.dim_o = dim_o               # dimensionality of objective space
-        self.mu = mu                     # population size
-        self.step_size = step_size       # step size
-        self.individual_step_size = np.repeat(self.step_size, self.mu)
+    def __init__(self, dim_d, dim_o, lb, ub,
+                 mu=40, fitness=None, gradient=None, ref=None, initial_step_size=0.1, 
+                 maximize=True, sampling='uniform', adaptive_step_size=True, 
+                 verbose=False, **kwargs):    
+        """
+        Hypervolume Indicator Gradient Ascent Algortihm class
+
+        Parameters
+        ----------
+
+        dim_d : integer
+            dimensionality of the decision space
+
+        dim_o : integer
+            dimensionality of the objective space 
+
+        lb : array
+            lower bound of the search domain
+
+        ub : array
+            upper bound of the search domain
+
+        mu :  integer
+            the size of the Pareto approxiamtion set
+
+        fitness : callable or list of callable (function) (vector-evaluated) objective 
+            function
+
+        gradient : callable or list of callable (function)
+            the gradient (Jacobian) of the objective function
+
+        ref : array or list 
+            the reference point
+
+        initial_step_size : numeric or string
+            the inital step size, it could be a string subject to evaluation
+            
+        maximize : boolean or list of boolean
+            Is the objective functions subject to maximization. If it is a list, it specifys the maximization option per objective dimension
+
+        sampling : string
+            the method used in the initial sampling of the approximation set
+
+        adaptive_step_size : boolean
+            whether to enable to adaptive control for the step sizes, enabled by default
+
+        verbose : boolean
+            controls the verbosity
+
+        kwargs: additiional parameters, including:
+            steer_dominated : string
+                the method to steer (move) the dominated points. Available options: are
+                'NDS', 'M1', 'M2', 'M3', 'M4', 'M5'. 'NDS' stands for Non-dominated 
+                Sorting and enabled by default. For the detail of the methods here, 
+                please refer to paper [2] below.
+
+            enable_dominated : boolen, whether to include dominated points population, for 
+                test purpose only
+
+            normalize : boolean
+                if the gradient is normalized or not
+
+        References:
+
+        .. [1] Wang H., Deutz A., Emmerich T.M. & Bäck T.H.W., Hypervolume Indicator 
+            Gradient Ascent Multi-objective Optimization. In Lecture Notes in Computer 
+            Science 10173:654-669. DOI: 10.1007/978-3-319-54157-0_44. In book: 
+            Evolutionary Multi-Criterion Optimization, pp.654-669.
+
+        .. [2] Wang H., Ren Y., Deutz A. & Michael T. M.Emmerich (2016), On Steering 
+            Dominated Points in Hypervolume Indicator Gradient Ascent for Bi-Objective 
+            Optimization. In: Schuetze O., Trujillo L., Legrand P., Maldonado Y. (Eds.) 
+            NEO 2015: Results of the Numerical and Evolutionary Optimization Workshop NEO 
+            2015 held at September 23-25 2015 in Tijuana, Mexico. no. Studies in 
+            Computational Intelligence 663. International Publishing: Springer.
+                
+
+        """
+        self.dim_d = dim_d                
+        self.dim_o = dim_o               
+        self.mu = mu                   
         self.verbose = verbose
-        assert self.mu > 1               # single point is not allowed
-        
+
+        assert self.mu > 1               # single point is not allowed 
+        assert sampling in ['uniform', 'LHS', 'grid']
+        self.sampling = sampling
+
+        # step-size settings
+        self.step_size = eval(initial_step_size) if isinstance(initial_step_size, 
+            basestring) else initial_step_size
+        self.individual_step_size = np.repeat(self.step_size, self.mu)
         self.adaptive_step_size = adaptive_step_size
+
+        # setup boundary in decision space
+        lb, ub = atleast_2d(lb), atleast_2d(ub)
+        self.lb = lb.T if lb.shape[1] != 1 else lb
+        self.ub = ub.T if ub.shape[1] != 1 else ub
         
+        # are objective functions subject to maximization  
         if hasattr(maximize, '__iter__') and len(maximize) != self.dim_o:
-            raise ValueError('maximize should have the same length as \
-                fitnessfuncs')
+            raise ValueError('maximize should have the same length as fitnessfuncs')
         elif isinstance(maximize, bool):
             maximize = [maximize] * self.dim_o
         self.maximize = np.atleast_1d(maximize)
@@ -79,8 +158,7 @@ class MOO_HyperVolumeGradient:
         # setup the fitness functions
         if isinstance(fitness, (list, tuple)):
             if len(fitness) != self.dim_o:
-                raise ValueError('fitness_grad should have the same length as \
-                    fitnessfuncs')
+                raise ValueError('fitness_grad: shape {} is inconsistent with dim_o:{}'.format(len(fitness), self.dim_o))
             self.fitness_func = fitness
             self.vec_eval_fitness = False
         elif hasattr(fitness, '__call__'):
@@ -93,8 +171,7 @@ class MOO_HyperVolumeGradient:
         # setup fitness gradient functions
         if isinstance(gradient, (list, tuple)):
             if len(gradient) != self.dim_o:
-                raise ValueError('fitness_grad should have the same length as \
-                    fitnessfuncs')
+                raise ValueError('fitness_grad: shape {} is inconsistent with dim_o: {}'.format(len(gradient), self.dim_o))
             self.grad_func = gradient
             self.vec_eval_grad = False
         elif hasattr(gradient, '__call__'):
@@ -104,59 +181,24 @@ class MOO_HyperVolumeGradient:
             raise Exception('fitness_grad should be either a list of functions or \
                 a matrix evaluated function!')
         
-        # setup sampling method
-        if sampling not in ['unif', 'lhs', 'sobol', 'grid', 'halton', 
-                            'test', 'grid']:
-            raise Exception('{} sampling is not supported!'.format(sampling))
-        self.sampling = sampling
-        
-        # setup boundary in decision space
-        lb = eval(opts['lb']) if isinstance(opts['lb'], basestring) else opts['lb']
-        ub = eval(opts['ub']) if isinstance(opts['ub'], basestring) else opts['ub']
-        lb, ub = atleast_2d(lb), atleast_2d(ub)
-        
-        self.lb = lb.T if lb.shape[1] != 1 else lb
-        self.ub = ub.T if ub.shape[1] != 1 else ub
-        
         # setup the performance metric functions for convergence detection
         try:
-            self.performance_metric_func = opts['performance_metric']
-            self.target_perf_metric = opts['target']
+            self.performance_metric_func = kwargs['performance_metric']
+            self.target_perf_metric = kwargs['target']
         except KeyError:
             self.performance_metric_func = None
             self.target_perf_metric = None
         
-        # check if the hypervolume gradient in objective space 
-        # should be normalized
-        self.normalize = normalize
-        self.gradient = zeros((self.dim_d, self.mu))
+        self.normalize = kwargs['normalize'] if kwargs.has_key('normalize') else True
+        self.enable_dominated = True if not kwargs.has_key('enable_dominated') else kwargs['enable_dominated']
+        self.maxiter = kwargs['maxiter'] if kwargs.has_key('maxiter') else inf
         
-        # boolean to decide wether to combine non-dominated sorting with
-        # HyperVolume gradient. The default setting is False
+        # dominated_steer for moving non-differentiable or zero-derivative points
         try:
-            self.non_dominated_sorting = opts['non_dominated_sorting']
+            self.dominated_steer = kwargs['dominated_steer']
+            assert self.dominated_steer in ['M'+str(i) for i in range(1, 6)] + ['NDS']
         except KeyError:
-            self.non_dominated_sorting = False
-        
-        # boolean to decide wether to move dominated points or not
-        # default setting is True
-        try:
-            self.enable_dominated = opts['enable_dominated']
-        except KeyError:
-            self.enable_dominated = True
-        
-        # heuristic for moving non-differentiable or zero-derivative points
-        try:
-            assert opts['heuristic'] in ['M'+str(i) for i in range(1, 6)]
-            self.heuristic = opts['heuristic']
-        except KeyError:
-            self.heuristic = 'M3'
-        
-        # maximal iteration number
-        try:
-            self.maxiter = opts['maxiter']
-        except KeyError:
-            self.maxiter = inf
+            self.dominated_steer = 'NDS'
             
         self.pop = None
         self.pop_old = None    # for potential rollback
@@ -192,11 +234,9 @@ class MOO_HyperVolumeGradient:
         # record the working states of all search points
         self._states = array(['NOT-INIT'] * self.mu, dtype='|S5')
         
-        
     def __str__(self):
         # TODO: implement this 
         pass
-    
     
     def __obj_dx(self, gradient):
         def obj_dx(x):
@@ -205,34 +245,16 @@ class MOO_HyperVolumeGradient:
             return dx
         return obj_dx
         
-        
     def init_sample(self, dim, n_sample, x_lb, x_ub, method=None):
         if method == None:
             method = self.sampling
             
-        if method == 'lhs':
+        if method == 'LHS':
             # Latin Hyper Cube Sampling: Get evenly distributed sampling in R^dim
             samples = lhs(dim, samples=n_sample).T * (x_ub - x_lb) + x_lb
             
-        elif method == 'unif':
+        elif method == 'uniform':
             samples = np.random.rand(dim, n_sample) * (x_ub - x_lb) + x_lb
-            
-        elif method == 'sobol':
-            seed = mod(int(time.time()) + os.getpid(), int(1e6))
-            samples = np.zeros((dim, n_sample))
-            
-            for i in range(n_sample):
-                samples[:, i], seed = i4_sobol(dim, seed)
-            samples = samples * (x_ub - x_lb) + x_lb
-            
-        elif method == 'halton':
-            sequencer = Halton(dim)
-            samples = sequencer.get(n_sample).T * (x_ub - x_lb) + x_lb
-        
-        # TODO: this initialization should be removed after testing the algorithm
-        elif method == 'test':
-            samples = array([np.linspace(0.4, 0.6, n_sample), 
-                             np.repeat(0.5, n_sample)])
         
         elif method == 'grid':
             n_sample_axis = np.ceil(sqrt(self.mu))
@@ -241,16 +263,8 @@ class MOO_HyperVolumeGradient:
             x2 = np.linspace(x_lb[1] + 0.05, x_ub[1]-0.05, n_sample_axis)
             X1, X2 = np.meshgrid(x1, x2)
             samples = r_[X1.reshape(1, -1), X2.reshape(1, -1)]
-#            samples += 0.05*np.random.rand(self.dim_d, self.mu)
-            
-#            n_sample_axis = self.mu
-#            x1 = np.random.rand(n_sample_axis)
-#            x2 = np.repeat(0.5, n_sample_axis)
-#            samples = array([x1, x2])
-#        samples = array([[0.1, 0.95]])
         
         return samples
-        
         
     def hypervolume_dx(self, positive_set, ref=None):
         if ref is None:
@@ -278,7 +292,6 @@ class MOO_HyperVolumeGradient:
             
         return gradient_decision
         
-        
     def hypervolume_df(self, positive_set, ref):
         if self.dim_o == 2:
             gradient = self.__2D_hypervolume_df(positive_set, ref)
@@ -286,7 +299,6 @@ class MOO_HyperVolumeGradient:
             gradient = self.__ND_hypervolume_df(positive_set, ref)
     
         return gradient
-    
     
     def __2D_hypervolume_df(self, positive_set, ref):
         n_point = len(positive_set)
@@ -312,7 +324,6 @@ class MOO_HyperVolumeGradient:
     def __ND_hypervolume_df(self, positive_set):
         # TODO: implement hypervolume gradient larger than 3D
         pass
-    
     
     def check_population(self, fitness):
         n_point = fitness.shape[1]
@@ -369,7 +380,6 @@ class MOO_HyperVolumeGradient:
         
         return pareto_front, Z, U, P
     
-    
     def evaluate(self, pop):
         pop = np.atleast_2d(pop)
         pop = pop.T if pop.shape[0] != self.dim_d else pop
@@ -384,7 +394,6 @@ class MOO_HyperVolumeGradient:
         _fitness = fitness * (-1) ** np.atleast_2d(~self.maximize).T
         return fitness, _fitness
     
-            
     def fast_non_dominated_sort(self, fitness):
             
         fronts = []
@@ -430,35 +439,33 @@ class MOO_HyperVolumeGradient:
             
         return fronts
         
-        
-    def heuristic_gradient(self, idx_ZU):
+    def steering_dominated(self, idx_ZU):
         # The rest points move along directions aggregated from function
-        # gradients by scalarization heuristics
+        # gradients by scalarization dominated_steers
         gradient_ZU = zeros((self.dim_d, len(idx_ZU)))
         
-        if self.heuristic in ['M4', 'M5']:
+        if self.dominated_steer in ['M4', 'M5']:
             mid_gap, slope = self.__mid_gap_pareto(self.pareto_front)
             __ = list(set(range(self.mu)) - set(self.pareto_front))
             nearst_gap_idx = self.__nearst_gap(mid_gap, __)
                 
-        
-        if self.heuristic == 'M2' and self.itercount == 0:
+        if self.dominated_steer == 'M2' and self.itercount == 0:
             self.weights = np.random.rand(len(idx_ZU))
             self.weights_mapping = {t: i for i, t in enumerate(idx_ZU)}
         
         for i, k in enumerate(idx_ZU): 
             # calculate the objective function gradients
-            grads = np.atleast_2d(self.grad_func(self.pop[:, k])).T if self.vec_eval_grad else \
-                array([grad(self.pop[:, k]) for grad in self.grad_func]).T
+            grads = np.atleast_2d(self.grad_func(self.pop[:, k])).T if self.vec_eval_grad \
+                else array([grad(self.pop[:, k]) for grad in self.grad_func]).T
             # gradient vectors need to be reverted under minimization
             grads *= (-1) ** np.atleast_2d(~self.maximize)
             
             # simple objective scalarization with equal weights 
-            if self.heuristic == 'M1':
+            if self.dominated_steer == 'M1':
                 gradient_ZU[:, i] = np.sum(grads, axis=1)
             
             # objective scalarization with random (uniform) weights 
-            elif self.heuristic == 'M2':
+            elif self.dominated_steer == 'M2':
                 try:
                     idx = self.weights_mapping[k]
                     w = self.weights[idx]
@@ -472,7 +479,7 @@ class MOO_HyperVolumeGradient:
                 gradient_ZU[:, i] = np.sum(grads * array([w, 1-w]), axis=1)
             
             # Lara's method: scalarization after gradient normalization
-            elif self.heuristic == 'M3':
+            elif self.dominated_steer == 'M3':
                 
                 length = sqrt(np.sum(grads ** 2.0, axis=0))
                 idx, = nonzero(length != 0)
@@ -481,7 +488,7 @@ class MOO_HyperVolumeGradient:
             
             # converge to the tangential point on the pareto front with the same
             # slope as the secant of the nearst gap
-            elif self.heuristic == 'M4':
+            elif self.dominated_steer == 'M4':
                 assert self.dim_o == 2       # only work in 2-D
                 
                 gap_idx = nearst_gap_idx[i]
@@ -490,7 +497,7 @@ class MOO_HyperVolumeGradient:
                 gradient_ZU[:, i] = np.sum(grads * array([w, 1-w]), axis=1)
             
             # converge to the middel point of the chord of the nearst gap
-            elif self.heuristic == 'M5':
+            elif self.dominated_steer == 'M5':
                 assert self.dim_o == 2       # only work in 2-D
                 
                 if len(nearst_gap_idx) == 0:
@@ -503,7 +510,6 @@ class MOO_HyperVolumeGradient:
             
         return gradient_ZU
         
-        
     def __nearst_gap(self, mid_gap, idx):
         """
         assigning non-differential points to the nearst gap on the pareto front 
@@ -513,10 +519,8 @@ class MOO_HyperVolumeGradient:
         
         if len(mid_gap) != 0:
             if mid_gap.shape[1] > 1:
-                
                 if 1 < 2:
                     avail_gap = range(mid_gap.shape[1])
-            
                     for i in idx:
                         if len(avail_gap) == 0:
                             avail_gap = range(len(mid_gap))
@@ -528,7 +532,7 @@ class MOO_HyperVolumeGradient:
                             nearst_gap_idx.append(nearst_idx)
                         
                         avail_gap = list(set(avail_gap) - set(nearst_gap_idx))
-                if 11 < 2:
+                else:
                     for i in idx:
                         p = self._fitness[:, i].reshape(-1, 1)
                         dis = np.sum((mid_gap - p) ** 2.0, axis=0)
@@ -537,7 +541,6 @@ class MOO_HyperVolumeGradient:
                 
         return nearst_gap_idx
 
-    
     def __mid_gap_pareto(self, idx_P):
         front = self._fitness[:, idx_P]
         
@@ -559,10 +562,8 @@ class MOO_HyperVolumeGradient:
         
         return mid_gap, slope
     
-    
     def check_stop_criteria(self):
         # TODO: implemement more stop criteria 
-        # check for maximal iteration
         if self.itercount >= self.maxiter:
             self.stop_list += ['maxiter']
             
@@ -585,7 +586,6 @@ class MOO_HyperVolumeGradient:
             
         return self.stop_list
         
-    
     def __backtracing_line_search(self, idx):
         point = self.pop[:, idx]
         idx_point = self.pareto_front.index(idx)
@@ -596,9 +596,7 @@ class MOO_HyperVolumeGradient:
         
         gradient = self.gradient[:, idx]        
         f0 = self.hv.compute(pareto.T)
-        
         while True:
-            
             new_point = point + alpha * gradient
             new_fitness, _ = self.evaluate(new_point[:, np.newaxis])
             pareto[:, idx_point] = new_fitness[:, 0]
@@ -609,10 +607,8 @@ class MOO_HyperVolumeGradient:
             alpha *= tau
             
         return alpha
-    
-    
+
     def step_size_control(self):
-        
         # ------------------------------ IMPORTANT -------------------------------
         # The step-size adaptation is of vital importance here!!!
         # general control rule to improve the stability: when a point tries to merge
@@ -627,41 +623,35 @@ class MOO_HyperVolumeGradient:
                         
         self.dominance_track_old = deepcopy(self.dominance_track)
         
+        #==============================================================================
         # step-size control method 1: detection of oscillating HV
         # works in very primitive case, needs more test
         # It requires hypervolume indicator computation, which is time-consuming
+        #==============================================================================
         if 11 < 2:
             front = self.fitness[:, self.pareto_front]
             hv = HyperVolume(-self.ref[:, 0])
             self.hv_history[self.itercount%10] = hv.compute(front.T.tolist())
             
-            if (self.non_dominated_sorting and len(self.fronts) == 1) or \
-                (not self.non_dominated_sorting and len(self.idx_ZU) == 0):
+            if (self.dominated_steer == 'NDS' and len(self.fronts) == 1) or \
+                (not self.dominated_steer == 'NDS' and len(self.idx_ZU) == 0):
                     if len(np.unique(self.hv_history)) == 2:
                         self.step_size *= 0.8
         
-#==============================================================================
-# Step size control method 2.1: cumulative step-size control
-#==============================================================================
-        
-        # step-size control method 2: cumulative step-size control. It works 
-        # reasonably good among many tests and does not require too much additional 
-        # computational time
+        #==============================================================================
+        # Step size control method 2: cumulative step-size control
+        # It works reasonably good among many tests and does not require too much 
+        # additional computational time
+        #==============================================================================
         if self.itercount != 0:
-            # TODO: find better parameters setting by experimentation on the simple
-            # problem 
-        
-            
             # the learning rate setting is largely afffected by the situation of 
             # oscillation. The smaller this value is, the larger oscilation it 
-            # could handle. However, the smaller this value implies slower learning 
-            # rate
-            alpha = 0.7    # used for general purpose
+            # could handle. However, the smaller this value implies slower learning rate
+            alpha = 0.7       # used for general purpose
             # alpha = 0.5     # currently used for Explorative Landscape Analysis
             c = 0.2
-
             if 11 < 2:
-                if self.non_dominated_sorting:
+                if self.dominated_steer == 'NDS':
                     control_set = range(self.mu)
                 else:
                     control_set = self.idx_P
@@ -672,36 +662,26 @@ class MOO_HyperVolumeGradient:
             
             if 1 < 2:
                 from scipy.spatial.distance import cdist 
-                # calculate the upper bound of the decision point in each layer
-                
                 for idx in control_set:
+                    self.inner_product[idx] = (1 - c) * self.inner_product[idx] + \
+                        c * np.inner(self.path[:, idx], self.gradient_norm[:, idx])
                     
-                    self.inner_product[idx] = (1 - c) * self.inner_product[idx] + c * \
-                        np.inner(self.path[:, idx], self.gradient_norm[:, idx])
+                    if 11 < 2:
+                        # step-size control rule similar to 1/5-rule in ES
+                        if self.inner_product[idx] < 0:
+                            self.individual_step_size[idx] *= alpha
+                        else:
+                            step_size_ = self.individual_step_size[idx] / alpha
+                            self.individual_step_size[idx] = np.min([np.inf*self.step_size,                                     step_size_])
                     
-#==============================================================================
-#                    # TODO: develop a better control action here...'
-                     # step-size control rule similar to 1/5-rule in ES
-#                    if self.inner_product[idx] < 0:
-#                        self.individual_step_size[idx] *= alpha
-#                    else:
-#                        tmp = self.individual_step_size[idx] / alpha
-#                        self.individual_step_size[idx] = np.min([np.inf*self.step_size, tmp])
-#==============================================================================
-                    
-                    
-#==============================================================================
-#                   # TODO: validate this rule
-                    # control the step-size using the exponential function   
-                    tmp = self.individual_step_size[idx] * \
+                    # control the change rate of the step-size by passing the cumulative 
+                    # dot product into the exponential function   
+                    step_size_ = self.individual_step_size[idx] * \
                         np.exp((self.inner_product[idx])*alpha)
-#==============================================================================
                     
-                    
-#==============================================================================
-# put a upper bound on the adaptive step-size to avoid it becoming two large!
-# The upper bound is calculated as the distance from one point to its nearest neighour 
-# in the decision space.
+                    # put a upper bound on the adaptive step-size to avoid it becoming two 
+                    # large! The upper bound is calculated as the distance from one point 
+                    # to its nearest neighour in the decision space.
                     _ = [i for i, front in enumerate(self.fronts) if idx in front][0]
                     front = self.fronts[_]
                     if len(front) != 1:
@@ -709,20 +689,19 @@ class MOO_HyperVolumeGradient:
                         dis = cdist(np.atleast_2d(self.pop[:, idx]), self.pop[:, __].T)
                         step_size_ub = 0.7 * np.min(dis)
                     else:
-                        step_size_ub = np.inf
-#==============================================================================
+                        step_size_ub = 4.*self.step_size
                         
-                    self.individual_step_size[idx] = np.min([4.*self.step_size, tmp])
-                    self.path[:, idx] = self.gradient_norm[:, idx]
-            
-        # TODO: good implementation is needed! This method should be tested       
+                    self.individual_step_size[idx] = np.min([step_size_ub, step_size_])
+                    self.path[:, idx] = self.gradient_norm[:, idx]   
+
+        #==============================================================================
         # step-size control method 3: exploit the backtracing Line search to find 
         # the optimal step-size setting. works but requires much more function evaluations
+        #==============================================================================   
         if 11 < 2:
             for idx in self.idx_P:
                 self.individual_step_size[idx] = self.__backtracing_line_search(idx)
                 
-    
     def constraint_handling(self, pop):
         # handling the simple box constraints
         lb, ub = self.lb[:, 0], self.ub[:, 0]
@@ -731,7 +710,6 @@ class MOO_HyperVolumeGradient:
             idx1, idx2 = p <= lb, p >= ub
             p[idx1] = lb[idx1]
             p[idx2] = ub[idx2]
-            
             
     def restart_check(self):
         """
@@ -752,7 +730,6 @@ class MOO_HyperVolumeGradient:
         on_bound = set(nonzero(np.any(np.bitwise_or(self.pop == self.lb, 
                                                     self.pop == self.ub), axis=0))[0])
                                                     
-        
         # TODO: gradient projection
         # if: 
         #   1) the point is on the boundary
@@ -777,15 +754,13 @@ class MOO_HyperVolumeGradient:
         
         return list(restart_ind), list(stationary_ind)
     
-    
     def duplication_handling(self):
         # check for the potential duplication of stationary point in the popualation
         # add move such point to prevent duplication of points
-        # TODO: verify this! possibly better heuristic exists
-        
+        # TODO: verify this! possibly better dominated_steer exists
         fitness = self.fitness[:, self.pareto_front]
-        
         checked_list = []
+
         for i, ind in enumerate(self.pareto_front):
             if i in checked_list:
                 continue
@@ -797,7 +772,6 @@ class MOO_HyperVolumeGradient:
             
             # when duplication happens, move one duplicated point slightly
             if len(tmp) != 0:
-                
                 for k in tmp:
                     duplication_ind0 = self.pareto_front[i]
                     duplication_ind = self.pareto_front[k]
@@ -812,16 +786,13 @@ class MOO_HyperVolumeGradient:
                         res = nonzero(dis == min(dis))[0][0]
                         nearst_ind = self.pareto_front[res]
                        
-                        
                         # move to the half way to its nearst neighour and penalize its stepsize
                         self.pop[:, duplication_ind] = (self.pop[:, nearst_ind] + \
                             self.pop[:, duplication_ind]) / 2.
                         
                         self.individual_step_size[duplication_ind] = self.step_size / 5.
-                        
                         checked_list += [k]
 
-                        
     def update_ref_point(self):
         # TODO: verify the performance difference of this to the fixed reference point
         self.dynamic_ref = []
@@ -831,7 +802,6 @@ class MOO_HyperVolumeGradient:
             ref_front += 0.1 * ref_front
             self.dynamic_ref += [ref_front]
             
-    
     def step(self):
         
         # population initialization
@@ -843,25 +813,20 @@ class MOO_HyperVolumeGradient:
         self.fitness, self._fitness = self.evaluate(self.pop)
         
         # Combine non dominated sorting with HyperVolume gradient ascend
-        if self.non_dominated_sorting:
-            
-            # TODO: fast non-dominated sorting should be applied after 
-            # partition the population
-            # TODO: change the variable name 'Pareto_front'
+        if self.dominated_steer == 'NDS':
             self.fronts = self.fast_non_dominated_sort(self._fitness)
             self.pareto_front = self.fronts[0]
             
-            # dynamic reference point update: should be called before computing 
-            # the hypervolume gradients
+            # TODO: implement the dynamic reference point update:
 #            self.update_ref_point()
             
             # compute the hypervolume gradient for each front layer
             for i, front in enumerate(self.fronts):
                 self.gradient[:, front] = self.hypervolume_dx(front)
         
-        # partition the collection of vectors according differetiability
+        # partition the collection of vectors according to Hypervolume indicator 
+        # differetiability
         else:
-            
             pareto_front, Z, U, P = self.check_population(self._fitness)
             self.fronts = self.fast_non_dominated_sort(self._fitness)
             self.idx_P, self.idx_ZU = list(P), list(Z | U)
@@ -870,18 +835,11 @@ class MOO_HyperVolumeGradient:
             __ = list(set(range(self.mu)) - set(self.pareto_front))
             
             # compute the hypervolume gradient for differentiable points
+            # TODO: check why I abandon the idx_P here
 #            gradient_P = self.hypervolume_dx(self.idx_P)
             gradient_P = self.hypervolume_dx(self.pareto_front)
-            
-            # searching heuristics for the rest points
-#            gradient_ZU = self.heuristic_gradient(self.idx_ZU) \
-#                if self.enable_dominated and len(self.idx_ZU) != 0 else []
-            
-            gradient_ZU = self.heuristic_gradient(__) \
+            gradient_ZU = self.steering_dominated(__) \
                 if self.enable_dominated and len(__) != 0 else []
-            
-#            self.gradient[:, self.idx_P] = gradient_P
-#            self.gradient[:, self.idx_ZU] = gradient_ZU
             
             self.gradient[:, self.pareto_front] = gradient_P
             self.gradient[:, __] = gradient_ZU
@@ -889,8 +847,9 @@ class MOO_HyperVolumeGradient:
         # check for stationary points and points needs to be resampled
         restart_ind, stationary_ind = self.restart_check()
         
-        # do not allow restart...
-        restart_ind = []
+        if 11 < 2:
+            # do not allow restart... for debug purpose
+            restart_ind = []
         
         for j, f in enumerate(self.fronts):
             self.dominance_track[f] = j
@@ -898,20 +857,12 @@ class MOO_HyperVolumeGradient:
         # index set for gradient ascent
         ind = list(set(range(self.mu)) - set(restart_ind) - set(stationary_ind))
         
-        # For debug: print the restart information
-        if 1 < 2 and len(restart_ind) != 0:
-            print 'restart...'
-        
         # normalization should be performed after gradient correction
-        # heuristic: normalize the gradient in objective space
         self.gradient_norm[:, :] = self.gradient
         if self.normalize:
             length = sqrt(np.sum(self.gradient_norm ** 2.0, axis=0))
             idx, = nonzero(length != 0)
             self.gradient_norm[:, idx] /= length[idx]
-            
-#        if np.all(self.gradient_norm == [-1, 1]) or self.itercount <= 3:
-#            print 'iteration {}, HV gradient: {}'.format(self.itercount, self.gradient)
         
         # call the step-size control function
         if self.adaptive_step_size:
@@ -924,8 +875,8 @@ class MOO_HyperVolumeGradient:
         # the initial step-size
         # TODO: better restarting action rules and better implementation
         self.individual_step_size[restart_ind] = self.step_size
-#        self.pop[:, restart_ind] = self.init_sample(self.dim_d, len(restart_ind),
-#                                                    self.lb, self.ub, 'unif')
+        self.pop[:, restart_ind] = self.init_sample(self.dim_d, len(restart_ind),
+                                                    self.lb, self.ub, 'uniform')
         
         # gradient ascending along the normalized gradient
         self.pop[:, ind] += self.individual_step_size[ind] * self.gradient_norm[:, ind]
@@ -941,7 +892,6 @@ class MOO_HyperVolumeGradient:
         
         return self.pareto_front, self.fitness
         
-    
     def optimize(self):
         
         # Main iteration        

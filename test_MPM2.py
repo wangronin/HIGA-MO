@@ -23,7 +23,6 @@ from mo_problem import simple
 from hv import HyperVolume
 
 from pandas import DataFrame, read_csv
-
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -128,16 +127,10 @@ def setup_problem(dim, index):
 def setup_HIGA_optimizer(dim, f_dim, mu, fitness, grad, x_lb, x_ub, ref,
                          step_size, maxiter):
 
-    opts = {'lb' : x_lb,
-            'ub' : x_ub,
-            'maxiter' : maxiter,
-            'heuristic' : 'M3',
-            'non_dominated_sorting' : True,
-            'enable_dominated' : True}
-
-    optimizer = MOO_HyperVolumeGradient(dim, f_dim, mu, fitness, grad, ref=ref,
-                                        opts=opts, step_size=step_size,
-                                        sampling='lhs', maximize=False)
+    optimizer = MOO_HyperVolumeGradient(dim, 2, x_lb, x_ub, mu, fitness,
+                                        grad, ref, step_size, sampling=sampling, 
+                                        maximize=False, maxiter=maxiter, 
+                                        steer_dominated='NDS', normalize=True)
 
     return optimizer
 
@@ -612,7 +605,7 @@ if __name__ == '__main__':
             'path': './results/{}/'.format(algorithm)    # data storage folder
             }
 
-    n_process = 4    # 1 for sequential execution, >1 for parallel execution
+    n_process = 1    # 1 for sequential execution, >1 for parallel execution
                          # requires MPI installation
 
     df = read_csv('./setup.csv')
