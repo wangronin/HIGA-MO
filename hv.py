@@ -34,7 +34,6 @@ class HyperVolume:
         self.referencePoint = referencePoint
         self.list = []
 
-
     def compute(self, front):
         """Returns the hypervolume that is dominated by a non-dominated front.
 

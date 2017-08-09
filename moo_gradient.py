@@ -35,7 +35,6 @@ import time
 import os
 
 import numpy as np
-from numpy.linalg import norm
 from numpy import argsort, r_, zeros, nonzero, array, atleast_2d, sqrt, mod, inf
 
 from hv import HyperVolume
