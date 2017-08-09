@@ -83,16 +83,13 @@ np.random.seed(100)
 fig_width = 20
 fig_height = fig_width * 9 / 16
 
-delay = 0           # delays between frames
+delay = 0               # delays between frames
 t_start = time.time()
 fps = 100
 
 dim = 2  
 mu = 50  
 maxiter = 500
-
-# def fitness_func(x):
-#     return [f1(x), f2(x)]
 
 fitness_func = [f1, f2]
 fitness_grad = [f1_grad, f2_grad]
