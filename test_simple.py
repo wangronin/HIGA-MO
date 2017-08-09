@@ -20,7 +20,6 @@ from platform import system
 from moo_gradient import MOO_HyperVolumeGradient
 from hv import HyperVolume
 
-
 def f1(x):
    x1, x2 = x
    return x1 ** 2.0 + (x2 - 0.5) ** 2.0
