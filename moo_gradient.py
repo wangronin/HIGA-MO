@@ -30,12 +30,8 @@ Created on Tue Nov 17 15:20:54 2015
            and convergence
 """
 
-import pdb
-import time
-import os
-
 import numpy as np
-from numpy import argsort, r_, zeros, nonzero, array, atleast_2d, sqrt, mod, inf
+from numpy import argsort, r_, zeros, nonzero, array, atleast_2d, sqrt, inf
 
 from hv import HyperVolume
 
@@ -83,7 +79,8 @@ class MOO_HyperVolumeGradient:
             the inital step size, it could be a string subject to evaluation
             
         maximize : boolean or list of boolean
-            Is the objective functions subject to maximization. If it is a list, it specifys the maximization option per objective dimension
+            Is the objective functions subject to maximization. If it is a list, it 
+            specifys the maximization option per objective dimension
 
         sampling : string
             the method used in the initial sampling of the approximation set
@@ -101,8 +98,8 @@ class MOO_HyperVolumeGradient:
                 Sorting and enabled by default. For the detail of the methods here, 
                 please refer to paper [2] below.
 
-            enable_dominated : boolen, whether to include dominated points population, for 
-                test purpose only
+            enable_dominated : boolen, 
+                whether to include dominated points population, for test purpose only
 
             normalize : boolean
                 if the gradient is normalized or not
@@ -157,7 +154,8 @@ class MOO_HyperVolumeGradient:
         # setup the fitness functions
         if isinstance(fitness, (list, tuple)):
             if len(fitness) != self.dim_o:
-                raise ValueError('fitness_grad: shape {} is inconsistent with dim_o:{}'.format(len(fitness), self.dim_o))
+                raise ValueError('fitness_grad: shape {} is inconsistent \
+                    with dim_o:{}'.format(len(fitness), self.dim_o))
             self.fitness_func = fitness
             self.vec_eval_fitness = False
         elif hasattr(fitness, '__call__'):
@@ -170,7 +168,8 @@ class MOO_HyperVolumeGradient:
         # setup fitness gradient functions
         if isinstance(gradient, (list, tuple)):
             if len(gradient) != self.dim_o:
-                raise ValueError('fitness_grad: shape {} is inconsistent with dim_o: {}'.format(len(gradient), self.dim_o))
+                raise ValueError('fitness_grad: shape {} is inconsistent \
+                    with dim_o: {}'.format(len(gradient), self.dim_o))
             self.grad_func = gradient
             self.vec_eval_grad = False
         elif hasattr(gradient, '__call__'):
@@ -189,7 +188,8 @@ class MOO_HyperVolumeGradient:
             self.target_perf_metric = None
         
         self.normalize = kwargs['normalize'] if kwargs.has_key('normalize') else True
-        self.enable_dominated = True if not kwargs.has_key('enable_dominated') else kwargs['enable_dominated']
+        self.enable_dominated = True if not kwargs.has_key('enable_dominated') \
+            else kwargs['enable_dominated']
         self.maxiter = kwargs['maxiter'] if kwargs.has_key('maxiter') else inf
         
         # dominated_steer for moving non-differentiable or zero-derivative points
@@ -282,7 +282,8 @@ class MOO_HyperVolumeGradient:
             jacobian *= (-1) ** np.atleast_2d(~self.maximize).T
             gradient_decision[:, k] = np.dot(gradient_objective[:, k], jacobian)
             
-#            if inner(jacobian[0, :], jacobian[1, :]) / (norm(jacobian[0, :]) * norm(jacobian[1, :])) == -1:
+#            if inner(jacobian[0, :], jacobian[1, :]) / \
+#                (norm(jacobian[0, :]) * norm(jacobian[1, :])) == -1:
 #                self._states[positive_set[k]] = 'INCO'
 #            else:
 #                if self._states[positive_set[k]] == 'INCO':
@@ -670,7 +671,8 @@ class MOO_HyperVolumeGradient:
                             self.individual_step_size[idx] *= alpha
                         else:
                             step_size_ = self.individual_step_size[idx] / alpha
-                            self.individual_step_size[idx] = np.min([np.inf*self.step_size,                                     step_size_])
+                            self.individual_step_size[idx] = np.min([np.inf*self.step_size, 
+                                                                    step_size_])
                     
                     # control the change rate of the step-size by passing the cumulative 
                     # dot product into the exponential function   
@@ -779,12 +781,14 @@ class MOO_HyperVolumeGradient:
                     
                         # compute its nearst neighour in decision space
                         point = self.pop[:, [duplication_ind]]
-                        dis = np.sum((self.pop[:, self.pareto_front] - point) ** 2.0, axis=0)
+                        dis = np.sum((self.pop[:, self.pareto_front] - point) ** 2.0, 
+                                     axis=0)
                         dis[dis == 0] = np.inf
                         res = nonzero(dis == min(dis))[0][0]
                         nearst_ind = self.pareto_front[res]
                        
-                        # move to the half way to its nearst neighour and penalize its stepsize
+                        # move to the half way to its nearst neighour 
+                        # and penalize its stepsize
                         self.pop[:, duplication_ind] = (self.pop[:, nearst_ind] + \
                             self.pop[:, duplication_ind]) / 2.
                         

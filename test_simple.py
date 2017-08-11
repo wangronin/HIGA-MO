@@ -86,7 +86,7 @@ t_start = time.time()
 fps = 100
 
 dim = 2
-mu = 50
+mu = 20
 maxiter = 500
 
 fitness_func = [f1, f2]
@@ -105,7 +105,8 @@ optimizer = MOO_HyperVolumeGradient(dim, 2, lb, ub, mu, fitness_func,
 fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, fig_height))
 
 # adjust the subplots layouts
-fig.subplots_adjust(left=0.03, bottom=0.01, right=0.97, top=0.99, wspace=0.08, hspace=0.1)
+fig.subplots_adjust(left=0.03, bottom=0.01, right=0.97, top=0.99, 
+                    wspace=0.08, hspace=0.1)
 plot_layers = optimizer.dominated_steer == 'NDS'
 
 if not plot_layers:
@@ -173,15 +174,16 @@ def animate(ind):
         
         for idx in range(mu):
             if idx in pop_x_traject:
-                pop_x_traject[idx] = pop_x_traject[idx] + optimizer.pop[:, idx].tolist()
+                pop_x_traject[idx] = pop_x_traject[idx] + \
+                    optimizer.pop[:, idx].tolist()
             else:
                 pop_x_traject[idx] = optimizer.pop[:, idx].tolist()
 
         for i, front in enumerate(fronts):
             if dim == 1:
-                lines += ax0.plot(x_eff[i][0, :], np.zeros(x_eff[i].shape[1]), ls='none',
-                                  marker='o', ms=5, mec='none', alpha=1,
-                                  color=_color[i % len(_color)])
+                lines += ax0.plot(x_eff[i][0, :], np.zeros(x_eff[i].shape[1]),
+                                  ls='none', marker='o', ms=5, mec='none', 
+                                  alpha=1, color=_color[i % len(_color)])
             if dim == 2:
                 lines += ax0.plot(x_eff[i][0, :], x_eff[i][1, :], ls='none',
                                   marker='o', ms=5, mec='none', alpha=1,
