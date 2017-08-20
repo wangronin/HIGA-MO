@@ -4,6 +4,7 @@ Created on Mon Nov 23 16:50:46 2015
 
 Testing script for multi-objective Hyper-Volume Gradient algorithm
 
+
 @author: wangronin
 
 @Notes:
@@ -18,23 +19,27 @@ from platform import system
 from moo_gradient import MOO_HyperVolumeGradient
 from hv import HyperVolume
 
+
 def f1(x):
     x1, x2 = x
     return x1 ** 2.0 + (x2 - 0.5) ** 2.0
+    
 
 def f2(x):
     x1, x2 = x
     return (x1 - 1) ** 2.0 + (x2 - 0.5) ** 2.0
 
+
 def f1_grad(x):
     x1, x2 = x
     return [2.0 * x1, 2.0 * (x2 - 0.5)]
+
 
 def f2_grad(x):
     x1, x2 = x
     return [2.0 * (x1 - 1), 2.0 * (x2 - 0.5)]
 
-# anther set of test functions
+# another set of test functions
 # def f1(x):
 #    x1, x2 = x
 #    return 1 - (x1 ** 2 + 1) * x2 ** 2
@@ -225,7 +230,8 @@ else:
     plt.show()
 # fig = plt.figure(figsize=(12, 9))
 # ax = fig.add_subplot(111, projection='3d')
-# ax.plot_surface(X, Y, fitness, rstride=1, cstride=1, cmap=cm.Blues, linewidth=0, alpha=0.3)
+# ax.plot_surface(X, Y, fitness, rstride=1, cstride=1, cmap=cm.Blues,
+# linewidth=0, alpha=0.3)
 
 # fig2, ax2 = plt.subplots(1, 1, figsize=(9, 7),
 #                    subplot_kw={'aspect': 'equal'}, dpi=100)
