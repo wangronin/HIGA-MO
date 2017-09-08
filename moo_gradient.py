@@ -901,4 +901,3 @@ class MOO_HyperVolumeGradient:
             self.step()
         
         return self.pareto_front, self.itercount
-
