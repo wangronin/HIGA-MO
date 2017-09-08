@@ -10,7 +10,6 @@ Created on Mon Feb  1 14:31:42 2016
     multi-objective optimization algorithms
 """
 
-import pdb
 import sys
 import numpy as np
 from numpy import zeros
@@ -21,13 +20,13 @@ from naive_optimizer import MOO_naive
 import mo_problem as MOP
 from hv import HyperVolume
 
-#from PyGMO import algorithm, population, problem
+# from PyGMO import algorithm, population, problem
 
 from mpi4py import MPI
 
 _table = ' ' * 3
 
-# ------------------------------ fix the unpicklable problem --------------------
+# -------------------------- fix the unpicklable problem --------------------
 import copy_reg
 import types
 
@@ -38,8 +37,8 @@ def _pickle_method(m):
     else:
         return getattr, (m.im_self, m.im_func.func_name)
 
-copy_reg.pickle(types.MethodType, _pickle_method)
 
+copy_reg.pickle(types.MethodType, _pickle_method)
 
 def ERT(run_time_array, performance, target=1e-8):
     total_run_time = 1.0 * np.sum(run_time_array)
@@ -47,13 +46,14 @@ def ERT(run_time_array, performance, target=1e-8):
     return total_run_time / n_successful
     
     
-#==============================================================================
+# ==========================================================================
 # MPI slave that does most of the computations
 def mpi_slave():
 
     comm = MPI.Comm.Get_parent()
     
-    d, pop_size, maxiter, algo, prob, prob2, ref, target = comm.bcast(None, root=0)
+    d, pop_size, maxiter, algo, prob, prob2, ref, target = comm.bcast(None, 
+                                                                      root=0)
     
     x_lb = array(prob.lb)
     x_ub = array(prob.ub)
