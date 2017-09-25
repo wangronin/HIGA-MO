@@ -23,7 +23,7 @@ from hv import HyperVolume
 def f1(x):
     x1, x2 = x
     return x1 ** 2.0 + (x2 - 0.5) ** 2.0
-    
+
 
 def f2(x):
     x1, x2 = x
@@ -110,7 +110,7 @@ optimizer = MOO_HyperVolumeGradient(dim, 2, lb, ub, mu, fitness_func,
 fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(fig_width, fig_height))
 
 # adjust the subplots layouts
-fig.subplots_adjust(left=0.03, bottom=0.01, right=0.97, top=0.99, 
+fig.subplots_adjust(left=0.03, bottom=0.01, right=0.97, top=0.99,
                     wspace=0.08, hspace=0.1)
 plot_layers = optimizer.dominated_steer == 'NDS'
 
@@ -119,7 +119,7 @@ if not plot_layers:
                               alpha=0.5)
     line10, line11 = ax1.plot([], [], 'or', [], [], 'ob', ms=6, mec='none',
                               alpha=0.5)
-                              
+
 fps_text = ax0.text(0.02, 0.95, '', transform=ax0.transAxes)
 hv_text = ax1.text(0.02, 0.95, '', transform=ax1.transAxes)
 
@@ -157,7 +157,7 @@ def init():
 
 def animate(ind):
     global t_start
- 
+
     time.sleep(delay / 1000.0)
     front_idx, fitness = optimizer.step()
 
@@ -168,15 +168,15 @@ def animate(ind):
         fps = 10 / (time.time() - t_start)
         t_start = time.time()
         fps_text.set_text('FPS: {}'.format(fps))
-        
+
     if plot_layers:
         ax0.lines = []
         ax1.lines = []
-        
+
         fronts_idx = optimizer.fronts
         fronts = [fitness[:, idx] for idx in fronts_idx]
         x_eff = [optimizer.pop[:, idx] for idx in fronts_idx]
-        
+
         for idx in range(mu):
             if idx in pop_x_traject:
                 pop_x_traject[idx] = pop_x_traject[idx] + \
@@ -187,7 +187,7 @@ def animate(ind):
         for i, front in enumerate(fronts):
             if dim == 1:
                 lines += ax0.plot(x_eff[i][0, :], np.zeros(x_eff[i].shape[1]),
-                                  ls='none', marker='o', ms=5, mec='none', 
+                                  ls='none', marker='o', ms=5, mec='none',
                                   alpha=1, color=_color[i % len(_color)])
             if dim == 2:
                 lines += ax0.plot(x_eff[i][0, :], x_eff[i][1, :], ls='none',
@@ -196,18 +196,18 @@ def animate(ind):
             lines += ax1.plot(front[0, :], front[1, :], ls='none',
                               marker='o', ms=5, mec='none', alpha=1,
                               color=_color[i % len(_color)])
-                             
+
         volume = hv.compute(fronts[0].T)
     else:
         dominated_idx = list(set(range(optimizer.mu)) - set(front_idx))
-        
+
         front = fitness[:, front_idx]
         dominated = fitness[:, dominated_idx]
         x_front = optimizer.pop[:, front_idx]
         x_dominated = optimizer.pop[:, dominated_idx]
-        
+
         volume = hv.compute(front.T)
-        
+
         line00.set_data(x_front[0, :], x_front[1, :])
         line01.set_data(x_dominated[0, :], x_dominated[1, :])
         line10.set_data(front[0, :], front[1, :])
@@ -237,7 +237,7 @@ else:
 #                    subplot_kw={'aspect': 'equal'}, dpi=100)
 # ax.hold(True)
 
-# CS = ax2.contour(X, Y, F, 80, cmap=cm.plasma_r, 
+# CS = ax2.contour(X, Y, F, 80, cmap=cm.plasma_r,
 #                 linewidths=1)
 # ax2.plot(linspace(0, 1, 100), linspace(0, 1, 100), 'k--', lw=1)
 
@@ -252,7 +252,7 @@ else:
 # ax2.quiver(x[:-1], y[:-1], x[1:]-x[:-1], y[1:]-y[:-1], scale_units='xy',
 #                angles='xy', width=2, units='dots', scale=1, alpha=0.3,
 #                color='k', headwidth=4, headlength=6)
-               
+
 # plt.tight_layout()
 
 # plt.show()
