@@ -52,10 +52,10 @@ class MOO_HyperVolumeGradient:
         ----------
 
         dim_d : integer
-            dimensionality of the decision space
+            decision space dimension
 
         dim_o : integer
-            dimensionality of the objective space 
+            objective space dimension
 
         lb : array
             lower bound of the search domain
@@ -66,10 +66,10 @@ class MOO_HyperVolumeGradient:
         mu :  integer
             the size of the Pareto approxiamtion set
 
-        fitness : callable or list of callable (function) (vector-evaluated) objective 
+        fitness : callable or list of callables (functions) (vector-evaluated) objective 
             function
 
-        gradient : callable or list of callable (function)
+        gradient : callable or list of callables (functions)
             the gradient (Jacobian) of the objective function
 
         ref : array or list 
@@ -91,7 +91,7 @@ class MOO_HyperVolumeGradient:
         verbose : boolean
             controls the verbosity
 
-        kwargs: additiional parameters, including:
+        kwargs: additional parameters, including:
             steer_dominated : string
                 the method to steer (move) the dominated points. Available options: are
                 'NDS', 'M1', 'M2', 'M3', 'M4', 'M5'. 'NDS' stands for Non-dominated 
@@ -106,12 +106,12 @@ class MOO_HyperVolumeGradient:
 
         References:
 
-        .. [1] Wang H., Deutz A., Emmerich T.M. & Bäck T.H.W., Hypervolume Indicator 
+        .. [1] Wang H., Deutz A., Emmerich M.T.M. & Bäck T.H.W., Hypervolume Indicator 
             Gradient Ascent Multi-objective Optimization. In Lecture Notes in Computer 
             Science 10173:654-669. DOI: 10.1007/978-3-319-54157-0_44. In book: 
             Evolutionary Multi-Criterion Optimization, pp.654-669.
 
-        .. [2] Wang H., Ren Y., Deutz A. & Michael T. M.Emmerich (2016), On Steering 
+        .. [2] Wang H., Ren Y., Deutz A. & Emmerich M.T.M., On Steering 
             Dominated Points in Hypervolume Indicator Gradient Ascent for Bi-Objective 
             Optimization. In: Schuetze O., Trujillo L., Legrand P., Maldonado Y. (Eds.) 
             NEO 2015: Results of the Numerical and Evolutionary Optimization Workshop NEO 
@@ -282,13 +282,13 @@ class MOO_HyperVolumeGradient:
             jacobian *= (-1) ** np.atleast_2d(~self.maximize).T
             gradient_decision[:, k] = np.dot(gradient_objective[:, k], jacobian)
             
-#            if inner(jacobian[0, :], jacobian[1, :]) / \
-#                (norm(jacobian[0, :]) * norm(jacobian[1, :])) == -1:
-#                self._states[positive_set[k]] = 'INCO'
-#            else:
-#                if self._states[positive_set[k]] == 'INCO':
-#                    pdb.set_trace()
-#                self._states[positive_set[k]] = 'COM'
+            # if inner(jacobian[0, :], jacobian[1, :]) / \
+            #     (norm(jacobian[0, :]) * norm(jacobian[1, :])) == -1:
+            #     self._states[positive_set[k]] = 'INCO'
+            # else:
+            #     if self._states[positive_set[k]] == 'INCO':
+            #         pdb.set_trace()
+            #     self._states[positive_set[k]] = 'COM'
             
         return gradient_decision
         
@@ -820,7 +820,7 @@ class MOO_HyperVolumeGradient:
             self.pareto_front = self.fronts[0]
             
             # TODO: implement the dynamic reference point update:
-#            self.update_ref_point()
+            # self.update_ref_point()
             
             # compute the hypervolume gradient for each front layer
             for i, front in enumerate(self.fronts):
@@ -838,7 +838,7 @@ class MOO_HyperVolumeGradient:
             
             # compute the hypervolume gradient for differentiable points
             # TODO: check why I abandon the idx_P here
-#            gradient_P = self.hypervolume_dx(self.idx_P)
+            # gradient_P = self.hypervolume_dx(self.idx_P)
             gradient_P = self.hypervolume_dx(self.pareto_front)
             gradient_ZU = self.steering_dominated(__) \
                 if self.enable_dominated and len(__) != 0 else []
